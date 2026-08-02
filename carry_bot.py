@@ -74,24 +74,16 @@ def notify(cfg, msg):
 
 
 # ---------------------------------------------------------------- exchanges
-def _secret(env_name):
-    """Ed25519 개인키 파일이 지정되면 PEM 내용을, 아니면 HMAC 시크릿을 반환."""
-    kf = os.environ.get("BINANCE_KEY_FILE")
-    if kf and Path(kf).exists():
-        return Path(kf).read_text()
-    return os.environ.get(env_name, "")
-
-
 def make_exchanges(cfg):
     mode = cfg["mode"]
     fut = ccxt.binanceusdm({
         "apiKey": os.environ.get("BINANCE_FUT_KEY", ""),
-        "secret": _secret("BINANCE_FUT_SECRET"),
+        "secret": os.environ.get("BINANCE_FUT_SECRET", ""),
         "enableRateLimit": True,
     })
     spot = ccxt.binance({
         "apiKey": os.environ.get("BINANCE_SPOT_KEY", ""),
-        "secret": _secret("BINANCE_SPOT_SECRET"),
+        "secret": os.environ.get("BINANCE_SPOT_SECRET", ""),
         "enableRateLimit": True,
     })
     if mode == "testnet" or (mode == "paper" and cfg.get("paper_use_testnet_data")):
@@ -110,12 +102,13 @@ def fetch_funding_apr(fut, symbol, lookback_n):
     if len(rows) < lookback_n:
         raise RuntimeError(f"funding history too short: {len(rows)}/{lookback_n}")
     rates = [r["fundingRate"] for r in rows[-lookback_n:]]
-    return sum(rates) / len(rates) * INTERVALS_PER_YEAR, rates[-1], rows[-1]["timestamp"]
+    apr = sum(rates) / len(rates) * INTERVALS_PER_YEAR
+    return apr, rates[-1], rows[-1]["timestamp"]
 
 
 # ---------------------------------------------------------------- actions
 def enter_carry(cfg, conn, spot, fut, price):
-    cap = cfg["capital_usdt"]
+    cap = cfg["capital_usdt"] * cfg.get("carry_fraction", 1.0)
     spot_usdt = cap * cfg["spot_fraction"]
     qty = float(fut.amount_to_precision(cfg["fut_symbol"], spot_usdt / price))
     detail = {"qty": qty, "price": price, "mode": cfg["mode"]}
@@ -146,6 +139,51 @@ def exit_carry(cfg, conn, spot, fut, price, pos):
     notify(cfg, f"🔴 캐리 청산 | qty {qty} BTC @ ${price:,.0f} | mode={cfg['mode']}")
 
 
+def btc_gate_signal(spot, fut, cfg):
+    """일봉 EMA200 게이트: 완성된 일봉 종가 > EMA -> 보유, 아니면 현금."""
+    span = cfg.get("btc_ema_days", 200)
+    try:
+        ohlcv = spot.fetch_ohlcv(cfg["spot_symbol"], "1d", limit=span + 70)
+    except Exception:  # noqa: BLE001 - testnet/paper fallback to futures data
+        ohlcv = fut.fetch_ohlcv(cfg["fut_symbol"], "1d", limit=span + 70)
+    closes = [c[4] for c in ohlcv[:-1]]  # 미완성 캔들 제외
+    if len(closes) < span:
+        raise RuntimeError(f"daily candles too short: {len(closes)}/{span}")
+    alpha = 2 / (span + 1)
+    ema = closes[0]
+    for c in closes:
+        ema = alpha * c + (1 - alpha) * ema
+    return closes[-1] > ema, closes[-1], ema
+
+
+def manage_btc_gate(cfg, conn, spot, fut, price):
+    """자본의 btc_fraction을 게이트 신호에 따라 현물 BTC로 보유/현금."""
+    frac = cfg.get("btc_fraction", 0.0)
+    if frac <= 0:
+        return "off"
+    above, dclose, ema = btc_gate_signal(spot, fut, cfg)
+    bpos = get_state(conn, "btc_position")
+    if bpos is None and above:
+        qty = float(fut.amount_to_precision(cfg["fut_symbol"],
+                                            cfg["capital_usdt"] * frac / price))
+        if cfg["mode"] == "live":
+            spot.create_order(cfg["spot_symbol"], "market", "buy", qty)
+        set_state(conn, "btc_position", {"qty": qty, "entry_price": price, "ts": time.time()})
+        log_event(conn, "ENTER_BTC", {"qty": qty, "price": price, "close": dclose,
+                                      "ema": round(ema, 1), "mode": cfg["mode"]})
+        notify(cfg, f"🟦 BTC 게이트 진입 | {qty} BTC @ ${price:,.0f} (일봉 {dclose:,.0f} > EMA200 {ema:,.0f})")
+        return "hold"
+    if bpos is not None and not above:
+        if cfg["mode"] == "live":
+            spot.create_order(cfg["spot_symbol"], "market", "sell", bpos["qty"])
+        pnl = (price - bpos["entry_price"]) * bpos["qty"]
+        set_state(conn, "btc_position", None)
+        log_event(conn, "EXIT_BTC", {"qty": bpos["qty"], "price": price, "pnl_usdt": round(pnl, 2)})
+        notify(cfg, f"⬜ BTC 게이트 청산 | @ ${price:,.0f} | 손익 ${pnl:,.2f} (일봉 EMA200 하향 이탈)")
+        return "cash"
+    return "hold" if bpos is not None else "cash"
+
+
 def safety_checks(cfg, conn, fut, pos):
     """Verify perp leg matches recorded state; alert on divergence (live/testnet)."""
     if cfg["mode"] == "paper" or pos is None:
@@ -170,7 +208,7 @@ def run_once(cfg):
     price = ticker["last"]
     pos = get_state(conn, "position")
 
-    # accrue funding while in position (bookkeeping for paper/testnet)
+    # accrue funding while in position — once per settlement (dedupe by timestamp)
     if pos is not None and get_state(conn, "last_funding_ts") != last_fts:
         earned = last_rate * pos["qty"] * price
         total = get_state(conn, "funding_earned", 0.0) + earned
@@ -189,15 +227,24 @@ def run_once(cfg):
         exit_carry(cfg, conn, spot, fut, price, pos)
         decision = "EXIT"
 
+    try:
+        gate = manage_btc_gate(cfg, conn, spot, fut, price)
+    except Exception as e:  # noqa: BLE001 - BTC 게이트 실패가 캐리를 막으면 안 됨
+        gate = "err"
+        notify(cfg, f"⚠️ BTC 게이트 처리 실패: {e}")
+
     state_txt = "보유중" if get_state(conn, "position") else "현금"
-    LOG.info("apr=%.2f%% last=%.5f%% price=%.0f decision=%s state=%s",
-             apr * 100, last_rate * 100, price, decision, state_txt)
+    gate_txt = {"hold": "BTC보유", "cash": "BTC현금", "off": "", "err": "BTC오류"}[gate]
+    LOG.info("apr=%.2f%% last=%.5f%% price=%.0f decision=%s carry=%s gate=%s",
+             apr * 100, last_rate * 100, price, decision, state_txt, gate)
     if cfg.get("heartbeat", False):
-        notify(cfg, f"💤 캐리 하트비트 | 펀딩APR {apr*100:.1f}% | {state_txt} | {decision}")
+        fund_cum = get_state(conn, "funding_earned", 0.0)
+        notify(cfg, f"💤 하트비트 | 펀딩APR {apr*100:.1f}% | 캐리 {state_txt} (누적 ${fund_cum:.2f}) | {gate_txt} | {decision}")
     return decision, apr
 
 
 def load_env():
+    """Load BASE/.env into os.environ (systemd EnvironmentFile equivalent for manual runs)."""
     env = BASE / ".env"
     if env.exists():
         for line in env.read_text().splitlines():

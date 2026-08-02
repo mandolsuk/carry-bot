@@ -1,15 +1,18 @@
-# carry_bot 설정 — 백테스트 채택값과 동일한 신호 파라미터
+# carry_bot v2 — 확정 포트폴리오: 캐리 75% + 게이트 BTC 25%
 mode: paper            # paper | testnet | live
-capital_usdt: 5000     # 전략에 배정할 총자본 (USDT)
-spot_fraction: 0.75    # 현물 75% / 선물 증거금 25% → 실효 레버리지 3x
+capital_usdt: 5000     # 총자본
+carry_fraction: 0.75   # 캐리 배분 (이 중 spot_fraction만큼 현물 매수)
+btc_fraction: 0.25     # 게이트 BTC 배분 (일봉 EMA200 위 보유 / 아래 현금)
+btc_ema_days: 200
+spot_fraction: 0.62    # 캐리 자본 내 현물 비중 (나머지는 선물 증거금)
 spot_symbol: BTC/USDT
 fut_symbol: BTC/USDT:USDT
 
-# 신호 (백테스트 검증값: lookback 21회=7일, 진입 연3%, 청산 연0%)
+# 캐리 신호 (백테스트 검증값: lookback 21회=7일, 진입 연3%, 청산 연0%)
 lookback_n: 21
 enter_apr: 0.03
 exit_apr: 0.0
 
 db_file: carry_state.db
-heartbeat: true       # true면 매 실행마다 텔레그램 상태 전송
+heartbeat: true        # 매 실행마다 텔레그램 상태 전송
 paper_use_testnet_data: false  # paper 모드에서 테스트넷 시세 사용(개발용)
