@@ -1,48 +1,30 @@
 {
  "state": {
   "position": {
-   "qty": 0.009,
-   "entry_price": 63049.8,
-   "ts": 1785583702.6862257
+   "qty": 0.036,
+   "entry_price": 63343.8,
+   "ts": 1785638865.7271435
   },
-  "funding_earned": 0.063665779905,
-  "last_funding_ts": 1785628800000
+  "funding_earned": 0.204330415212,
+  "last_funding_ts": 1785657600000
  },
  "events": [
   {
-   "ts": "2026-08-01 11:28:22",
+   "ts": "2026-08-02 02:47:45",
    "kind": "ENTER",
    "detail": {
-    "qty": 0.009,
-    "price": 63049.8,
+    "qty": 0.036,
+    "price": 63343.8,
     "mode": "paper"
    }
   },
   {
-   "ts": "2026-08-01 11:35:08",
+   "ts": "2026-08-02 08:05:09",
    "kind": "FUNDING",
    "detail": {
-    "rate": 3.163e-05,
-    "earned_usdt": 0.0179,
-    "cum_usdt": 0.02
-   }
-  },
-  {
-   "ts": "2026-08-01 16:05:46",
-   "kind": "FUNDING",
-   "detail": {
-    "rate": 3.545e-05,
-    "earned_usdt": 0.0201,
-    "cum_usdt": 0.04
-   }
-  },
-  {
-   "ts": "2026-08-02 00:05:09",
-   "kind": "FUNDING",
-   "detail": {
-    "rate": 4.53e-05,
-    "earned_usdt": 0.0256,
-    "cum_usdt": 0.06
+    "rate": 8.943e-05,
+    "earned_usdt": 0.2043,
+    "cum_usdt": 0.2
    }
   }
  ]
