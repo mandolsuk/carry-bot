@@ -1,0 +1,4 @@
+.env
+*.pem
+carry_state.db
+__pycache__/

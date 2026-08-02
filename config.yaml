@@ -1,0 +1,15 @@
+# carry_bot 설정 — 백테스트 채택값과 동일한 신호 파라미터
+mode: paper            # paper | testnet | live
+capital_usdt: 5000     # 전략에 배정할 총자본 (USDT)
+spot_fraction: 0.75    # 현물 75% / 선물 증거금 25% → 실효 레버리지 3x
+spot_symbol: BTC/USDT
+fut_symbol: BTC/USDT:USDT
+
+# 신호 (백테스트 검증값: lookback 21회=7일, 진입 연3%, 청산 연0%)
+lookback_n: 21
+enter_apr: 0.03
+exit_apr: 0.0
+
+db_file: carry_state.db
+heartbeat: true       # true면 매 실행마다 텔레그램 상태 전송
+paper_use_testnet_data: false  # paper 모드에서 테스트넷 시세 사용(개발용)

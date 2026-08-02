@@ -1,0 +1,9 @@
+[Unit]
+Description=Run carry bot after each funding settlement (00/08/16 UTC + 5min)
+
+[Timer]
+OnCalendar=*-*-* 00,08,16:05:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

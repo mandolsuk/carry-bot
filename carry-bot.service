@@ -1,0 +1,11 @@
+[Unit]
+Description=Funding carry bot (one-shot run)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ejjoo
+WorkingDirectory=/home/ejjoo/carry_bot
+EnvironmentFile=/home/ejjoo/carry_bot/.env
+ExecStart=/usr/bin/python3 /home/ejjoo/carry_bot/carry_bot.py
