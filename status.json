@@ -5,8 +5,8 @@
    "entry_price": 63343.8,
    "ts": 1785638865.7271435
   },
-  "funding_earned": 0.8080345831319998,
-  "last_funding_ts": 1785772800000
+  "funding_earned": 0.8785238085359999,
+  "last_funding_ts": 1785801600004
  },
  "events": [
   {
@@ -61,6 +61,15 @@
     "rate": 2.474e-05,
     "earned_usdt": 0.0568,
     "cum_usdt": 0.81
+   }
+  },
+  {
+   "ts": "2026-08-04 00:05:18",
+   "kind": "FUNDING",
+   "detail": {
+    "rate": 3.081e-05,
+    "earned_usdt": 0.0705,
+    "cum_usdt": 0.88
    }
   }
  ]
