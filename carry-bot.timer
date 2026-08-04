@@ -1,8 +1,8 @@
 [Unit]
-Description=Run carry bot after each funding settlement (00/08/16 UTC + 5min)
+Description=Run carry bot hourly (Donchian stop checks; carry acts at funding settlements)
 
 [Timer]
-OnCalendar=*-*-* 00,08,16:05:00 UTC
+OnCalendar=*-*-* *:05:00 UTC
 Persistent=true
 
 [Install]

@@ -184,6 +184,103 @@ def manage_btc_gate(cfg, conn, spot, fut, price):
     return "hold" if bpos is not None else "cash"
 
 
+def donchian_signal(ohlcv4h, n_in, n_out, atr_n, ema_span):
+    """4h 캔들 히스토리로 돈치안 상태를 결정론적으로 재계산. (백테스트와 동일 로직)"""
+    import statistics
+    o = [c[1] for c in ohlcv4h[:-1]]; h = [c[2] for c in ohlcv4h[:-1]]
+    l = [c[3] for c in ohlcv4h[:-1]]; c_ = [c[4] for c in ohlcv4h[:-1]]
+    n = len(c_)
+    # ATR (Wilder)
+    atr = None
+    for i in range(1, n):
+        tr = max(h[i] - l[i], abs(h[i] - c_[i - 1]), abs(l[i] - c_[i - 1]))
+        atr = tr if atr is None else (atr * (atr_n - 1) + tr) / atr_n
+    # EMA gate
+    alpha = 2 / (ema_span + 1)
+    ema = c_[0]
+    for x in c_:
+        ema = alpha * x + (1 - alpha) * ema
+    # state machine
+    s = 0
+    for i in range(n_in + 1, n):
+        hi = max(h[i - n_in:i]); lo = min(l[i - n_in:i])
+        xh = max(h[i - n_out:i]); xl = min(l[i - n_out:i])
+        if s == 0:
+            if c_[i] > hi: s = 1
+            elif c_[i] < lo: s = -1
+        elif s == 1 and c_[i] < xl: s = 0
+        elif s == -1 and c_[i] > xh: s = 0
+    # gate
+    if s == 1 and c_[-1] < ema: s = 0
+    if s == -1 and c_[-1] > ema: s = 0
+    return s, atr
+
+
+def manage_donchian(cfg, conn, fut, price):
+    """자본의 don_fraction으로 4h 돈치안 55/20 돌파 위성 운용 (선물, 레버리지 사이징)."""
+    frac = cfg.get("don_fraction", 0.0)
+    if frac <= 0:
+        return "off"
+    eq = get_state(conn, "don_equity", cfg["capital_usdt"] * frac)
+    ohlcv = fut.fetch_ohlcv(cfg["fut_symbol"], "4h", limit=1400)
+    want, atr = donchian_signal(ohlcv, cfg.get("don_in", 55), cfg.get("don_out", 20),
+                                14, 1200)
+    pos = get_state(conn, "don_position")
+    fee = 0.0007  # taker+slip per side
+
+    def close(reason):
+        nonlocal eq, pos
+        pnl = (price - pos["entry"]) * pos["qty"] * pos["side"] - price * pos["qty"] * fee
+        eq += pnl
+        set_state(conn, "don_equity", eq)
+        set_state(conn, "don_position", None)
+        if cfg["mode"] == "live":
+            side = "buy" if pos["side"] == -1 else "sell"
+            fut.create_order(cfg["fut_symbol"], "market", side, pos["qty"],
+                             params={"reduceOnly": True})
+        log_event(conn, "DON_EXIT", {"reason": reason, "price": price,
+                                     "pnl_usdt": round(pnl, 2), "equity": round(eq, 2)})
+        notify(cfg, f"🟠 돈치안 청산({reason}) @ ${price:,.0f} | 손익 ${pnl:,.2f} | 슬리브 ${eq:,.0f}")
+        pos = None
+
+    if pos is not None:
+        # trailing stop: best 가격 갱신 후 3xATR
+        best = max(pos["best"], price) if pos["side"] == 1 else min(pos["best"], price)
+        stop = best - pos["side"] * cfg.get("don_stop_mult", 3.0) * atr
+        if pos["side"] == 1:
+            stop = max(stop, pos["stop"])
+        else:
+            stop = min(stop, pos["stop"])
+        pos.update(best=best, stop=stop)
+        set_state(conn, "don_position", pos)
+        hit = (price <= stop) if pos["side"] == 1 else (price >= stop)
+        if hit:
+            close("stop")
+        elif want != pos["side"]:
+            close("signal")
+    pos = get_state(conn, "don_position")
+    if pos is None and want != 0:
+        stop_dist = cfg.get("don_stop_mult", 3.0) * atr
+        qty = eq * cfg.get("don_risk", 0.06) / stop_dist
+        qty = min(qty, eq * 5.0 / price)
+        qty = float(fut.amount_to_precision(cfg["fut_symbol"], qty))
+        if qty > 0:
+            eq -= price * qty * fee
+            set_state(conn, "don_equity", eq)
+            if cfg["mode"] == "live":
+                fut.create_order(cfg["fut_symbol"], "market",
+                                 "buy" if want == 1 else "sell", qty)
+            set_state(conn, "don_position", {"side": want, "qty": qty, "entry": price,
+                                             "best": price, "stop": price - want * stop_dist,
+                                             "ts": time.time()})
+            log_event(conn, "DON_ENTER", {"side": want, "qty": qty, "price": price,
+                                          "stop": round(price - want * stop_dist, 1)})
+            notify(cfg, f"🟠 돈치안 진입 {'롱' if want==1 else '숏'} {qty} BTC @ ${price:,.0f} "
+                        f"(스탑 ${price - want * stop_dist:,.0f}) | 슬리브 ${eq:,.0f}")
+    pos = get_state(conn, "don_position")
+    return ("롱" if pos["side"] == 1 else "숏") if pos else "대기"
+
+
 def safety_checks(cfg, conn, fut, pos):
     """Verify perp leg matches recorded state; alert on divergence (live/testnet)."""
     if cfg["mode"] == "paper" or pos is None:
@@ -232,14 +329,23 @@ def run_once(cfg):
     except Exception as e:  # noqa: BLE001 - BTC 게이트 실패가 캐리를 막으면 안 됨
         gate = "err"
         notify(cfg, f"⚠️ BTC 게이트 처리 실패: {e}")
+    try:
+        don = manage_donchian(cfg, conn, fut, price)
+    except Exception as e:  # noqa: BLE001
+        don = "오류"
+        notify(cfg, f"⚠️ 돈치안 처리 실패: {e}")
 
     state_txt = "보유중" if get_state(conn, "position") else "현금"
     gate_txt = {"hold": "BTC보유", "cash": "BTC현금", "off": "", "err": "BTC오류"}[gate]
-    LOG.info("apr=%.2f%% last=%.5f%% price=%.0f decision=%s carry=%s gate=%s",
-             apr * 100, last_rate * 100, price, decision, state_txt, gate)
-    if cfg.get("heartbeat", False):
+    LOG.info("apr=%.2f%% last=%.5f%% price=%.0f decision=%s carry=%s gate=%s don=%s",
+             apr * 100, last_rate * 100, price, decision, state_txt, gate, don)
+    # 하트비트는 펀딩 정산 시간대(00/08/16 UTC)에만 — 시간당 실행이라 매번 보내면 스팸
+    import datetime as _dt
+    if cfg.get("heartbeat", False) and _dt.datetime.now(_dt.timezone.utc).hour in (0, 8, 16):
         fund_cum = get_state(conn, "funding_earned", 0.0)
-        notify(cfg, f"💤 하트비트 | 펀딩APR {apr*100:.1f}% | 캐리 {state_txt} (누적 ${fund_cum:.2f}) | {gate_txt} | {decision}")
+        don_eq = get_state(conn, "don_equity", cfg["capital_usdt"] * cfg.get("don_fraction", 0))
+        notify(cfg, f"💤 하트비트 | 펀딩APR {apr*100:.1f}% | 캐리 {state_txt} (누적 ${fund_cum:.2f}) "
+                    f"| {gate_txt} | 돈치안 {don} (슬리브 ${don_eq:,.0f}) | {decision}")
     return decision, apr
 
 

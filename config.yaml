@@ -1,9 +1,14 @@
-# carry_bot v2 — 확정 포트폴리오: 캐리 75% + 게이트 BTC 25%
+# carry_bot v3 — 3전략 포트폴리오: 캐리 70% + 게이트BTC 20% + 돈치안 10%
 mode: paper            # paper | testnet | live
 capital_usdt: 5000     # 총자본
-carry_fraction: 0.75   # 캐리 배분 (이 중 spot_fraction만큼 현물 매수)
-btc_fraction: 0.25     # 게이트 BTC 배분 (일봉 EMA200 위 보유 / 아래 현금)
+carry_fraction: 0.70   # 캐리 배분 (이 중 spot_fraction만큼 현물 매수)
+btc_fraction: 0.20     # 게이트 BTC 배분 (일봉 EMA200 위 보유 / 아래 현금)
 btc_ema_days: 200
+don_fraction: 0.10     # 돈치안 위성 배분 (4h 55/20 돌파, 레버리지 사이징)
+don_in: 55             # 진입 채널 (4h 봉)
+don_out: 20            # 청산 채널
+don_stop_mult: 3.0     # ATR 트레일링 스탑 배수
+don_risk: 0.06         # 슬리브 자본 대비 트레이드당 리스크
 spot_fraction: 0.62    # 캐리 자본 내 현물 비중 (나머지는 선물 증거금)
 spot_symbol: BTC/USDT
 fut_symbol: BTC/USDT:USDT
