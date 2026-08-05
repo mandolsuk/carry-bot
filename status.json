@@ -5,17 +5,10 @@
    "entry_price": 63343.8,
    "ts": 1785638865.7271435
   },
-  "don_equity": 499.28556208,
   "funding_earned": 1.3229426375999997,
   "last_funding_ts": 1785945600000,
-  "don_position": {
-   "side": -1,
-   "qty": 0.016,
-   "entry": 63789.1,
-   "best": 63789.1,
-   "stop": 65505.7065428603,
-   "ts": 1785852404.7640972
-  }
+  "don_equity": 482.45905359999995,
+  "don_position": null
  },
  "events": [
   {
@@ -134,6 +127,16 @@
     "rate": 2.676e-05,
     "earned_usdt": 0.062,
     "cum_usdt": 1.32
+   }
+  },
+  {
+   "ts": "2026-08-05 20:05:21",
+   "kind": "DON_EXIT",
+   "detail": {
+    "reason": "signal",
+    "price": 64795.4,
+    "pnl_usdt": -16.83,
+    "equity": 482.46
    }
   }
  ]
