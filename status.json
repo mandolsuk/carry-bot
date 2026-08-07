@@ -7,8 +7,8 @@
   },
   "don_equity": 482.45905359999995,
   "don_position": null,
-  "funding_earned": 1.6943948726759999,
-  "last_funding_ts": 1786060800000
+  "funding_earned": 1.800294078348,
+  "last_funding_ts": 1786089600000
  },
  "events": [
   {
@@ -173,6 +173,15 @@
     "rate": 7.99e-06,
     "earned_usdt": 0.0185,
     "cum_usdt": 1.69
+   }
+  },
+  {
+   "ts": "2026-08-07 08:05:18",
+   "kind": "FUNDING",
+   "detail": {
+    "rate": 4.574e-05,
+    "earned_usdt": 0.1059,
+    "cum_usdt": 1.8
    }
   }
  ]
