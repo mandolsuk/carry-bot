@@ -8,7 +8,11 @@
   "don_equity": 482.45905359999995,
   "don_position": null,
   "funding_earned": 2.5992801904319998,
-  "last_funding_ts": 1786262400005
+  "last_funding_ts": 1786262400005,
+  "sha_state": {
+   "qty": 0.005777390221882598,
+   "cash": 374.625
+  }
  },
  "events": [
   {
@@ -236,6 +240,14 @@
     "rate": 6.667e-05,
     "earned_usdt": 0.1558,
     "cum_usdt": 2.6
+   }
+  },
+  {
+   "ts": "2026-08-09 12:51:34",
+   "kind": "SHA_INIT",
+   "detail": {
+    "qty": 0.005777,
+    "price": 64908.2
    }
   }
  ]
