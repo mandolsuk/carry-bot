@@ -166,7 +166,7 @@ def manage_btc_gate(cfg, conn, spot, fut, price):
     if bpos is None and above:
         qty = float(fut.amount_to_precision(cfg["fut_symbol"],
                                             cfg["capital_usdt"] * frac / price))
-        if cfg["mode"] == "live":
+        if cfg["mode"] == "live" and cfg.get("btc_live", False):
             spot.create_order(cfg["spot_symbol"], "market", "buy", qty)
         set_state(conn, "btc_position", {"qty": qty, "entry_price": price, "ts": time.time()})
         log_event(conn, "ENTER_BTC", {"qty": qty, "price": price, "close": dclose,
@@ -174,7 +174,7 @@ def manage_btc_gate(cfg, conn, spot, fut, price):
         notify(cfg, f"🟦 BTC 게이트 진입 | {qty} BTC @ ${price:,.0f} (일봉 {dclose:,.0f} > EMA200 {ema:,.0f})")
         return "hold"
     if bpos is not None and not above:
-        if cfg["mode"] == "live":
+        if cfg["mode"] == "live" and cfg.get("btc_live", False):
             spot.create_order(cfg["spot_symbol"], "market", "sell", bpos["qty"])
         pnl = (price - bpos["entry_price"]) * bpos["qty"]
         set_state(conn, "btc_position", None)
@@ -234,7 +234,7 @@ def manage_donchian(cfg, conn, fut, price):
         eq += pnl
         set_state(conn, "don_equity", eq)
         set_state(conn, "don_position", None)
-        if cfg["mode"] == "live":
+        if cfg["mode"] == "live" and cfg.get("don_live", False):
             side = "buy" if pos["side"] == -1 else "sell"
             fut.create_order(cfg["fut_symbol"], "market", side, pos["qty"],
                              params={"reduceOnly": True})
@@ -267,7 +267,7 @@ def manage_donchian(cfg, conn, fut, price):
         if qty > 0:
             eq -= price * qty * fee
             set_state(conn, "don_equity", eq)
-            if cfg["mode"] == "live":
+            if cfg["mode"] == "live" and cfg.get("don_live", False):
                 fut.create_order(cfg["fut_symbol"], "market",
                                  "buy" if want == 1 else "sell", qty)
             set_state(conn, "don_position", {"side": want, "qty": qty, "entry": price,
@@ -279,6 +279,45 @@ def manage_donchian(cfg, conn, fut, price):
                         f"(스탑 ${price - want * stop_dist:,.0f}) | 슬리브 ${eq:,.0f}")
     pos = get_state(conn, "don_position")
     return ("롱" if pos["side"] == 1 else "숏") if pos else "대기"
+
+
+def manage_shannon(cfg, conn, spot, price):
+    """섀넌의 도깨비: 슬리브 내 BTC 50:50, 밴드 이탈 시 초과분만 리밸런싱."""
+    frac = cfg.get("sha_fraction", 0.0)
+    if frac <= 0:
+        return "off"
+    target = cfg.get("sha_target", 0.5)
+    band = cfg.get("sha_band", 0.05)
+    fee = 0.001
+    st = get_state(conn, "sha_state")
+    if st is None:  # 최초: 슬리브의 target만큼 매수
+        sleeve = cfg["capital_usdt"] * frac
+        qty = sleeve * target / price
+        if cfg["mode"] == "live" and cfg.get("sha_live", False):
+            spot.create_order(cfg["spot_symbol"], "market", "buy", qty)
+        st = {"qty": qty, "cash": sleeve * (1 - target) - sleeve * target * fee}
+        set_state(conn, "sha_state", st)
+        log_event(conn, "SHA_INIT", {"qty": round(qty, 6), "price": price})
+        notify(cfg, f"⚖️ 섀넌 시작 | BTC {qty:.5f} + 현금 ${st['cash']:,.0f} (50:50)")
+        return f"{target*100:.0f}%"
+    bv = st["qty"] * price
+    tot = bv + st["cash"]
+    w = bv / tot
+    if abs(w - target) > band:
+        delta = (w - target) * tot          # 초과분만 매매
+        st["qty"] -= delta / price
+        st["cash"] += delta - abs(delta) * fee
+        set_state(conn, "sha_state", st)
+        side = "매도" if delta > 0 else "매수"
+        if cfg["mode"] == "live" and cfg.get("sha_live", False):
+            spot.create_order(cfg["spot_symbol"], "market",
+                              "sell" if delta > 0 else "buy", abs(delta) / price)
+        log_event(conn, "SHA_REBAL", {"side": side, "usdt": round(abs(delta), 2),
+                                      "price": price, "w_before": round(w, 3),
+                                      "sleeve": round(tot, 2)})
+        notify(cfg, f"⚖️ 섀넌 리밸런싱 | {side} ${abs(delta):,.0f} @ ${price:,.0f} "
+                    f"(비중 {w*100:.1f}%→{target*100:.0f}%) | 슬리브 ${tot:,.0f}")
+    return f"{w*100:.0f}%"
 
 
 def safety_checks(cfg, conn, fut, pos):
@@ -334,6 +373,11 @@ def run_once(cfg):
     except Exception as e:  # noqa: BLE001
         don = "오류"
         notify(cfg, f"⚠️ 돈치안 처리 실패: {e}")
+    try:
+        sha = manage_shannon(cfg, conn, spot, price)
+    except Exception as e:  # noqa: BLE001
+        sha = "오류"
+        notify(cfg, f"⚠️ 섀넌 처리 실패: {e}")
 
     state_txt = "보유중" if get_state(conn, "position") else "현금"
     gate_txt = {"hold": "BTC보유", "cash": "BTC현금", "off": "", "err": "BTC오류"}[gate]
@@ -345,7 +389,7 @@ def run_once(cfg):
         fund_cum = get_state(conn, "funding_earned", 0.0)
         don_eq = get_state(conn, "don_equity", cfg["capital_usdt"] * cfg.get("don_fraction", 0))
         notify(cfg, f"💤 하트비트 | 펀딩APR {apr*100:.1f}% | 캐리 {state_txt} (누적 ${fund_cum:.2f}) "
-                    f"| {gate_txt} | 돈치안 {don} (슬리브 ${don_eq:,.0f}) | {decision}")
+                    f"| {gate_txt} | 돈치안 {don} (슬리브 ${don_eq:,.0f}) | 섀넌 BTC {sha} | {decision}")
     return decision, apr
 
 

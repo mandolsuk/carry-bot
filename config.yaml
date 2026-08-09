@@ -1,9 +1,16 @@
-# carry_bot v3 — 3전략 포트폴리오: 캐리 70% + 게이트BTC 20% + 돈치안 10%
+# carry_bot v4 — 4전략 포트폴리오: 캐리 65 / 게이트BTC 10 / 섀넌 15 / 돈치안 10
 mode: paper            # paper | testnet | live
 capital_usdt: 5000     # 총자본
-carry_fraction: 0.70   # 캐리 배분 (이 중 spot_fraction만큼 현물 매수)
-btc_fraction: 0.20     # 게이트 BTC 배분 (일봉 EMA200 위 보유 / 아래 현금)
+carry_fraction: 0.65   # 캐리 배분 (이 중 spot_fraction만큼 현물 매수)
+btc_fraction: 0.10     # 게이트 BTC 배분 (일봉 EMA200 위 보유 / 아래 현금)
 btc_ema_days: 200
+sha_fraction: 0.15     # 섀넌 배분 (슬리브 내 BTC 50:50 밴드 리밸런싱)
+sha_target: 0.5
+sha_band: 0.05
+# 실거래 전환 시 전략별 스위치 (mode: live여도 아래가 true여야 실주문)
+btc_live: false
+don_live: false
+sha_live: false
 don_fraction: 0.10     # 돈치안 위성 배분 (4h 55/20 돌파, 레버리지 사이징)
 don_in: 55             # 진입 채널 (4h 봉)
 don_out: 20            # 청산 채널
