@@ -11,8 +11,8 @@
    "qty": 0.005777390221882598,
    "cash": 374.625
   },
-  "funding_earned": 6.245150484203998,
-  "last_funding_ts": 1787040000001
+  "funding_earned": 6.330334082003999,
+  "last_funding_ts": 1787068800003
  },
  "events": [
   {
@@ -491,6 +491,15 @@
     "rate": 5.02e-05,
     "earned_usdt": 0.1159,
     "cum_usdt": 6.25
+   }
+  },
+  {
+   "ts": "2026-08-18 16:05:18",
+   "kind": "FUNDING",
+   "detail": {
+    "rate": 3.65e-05,
+    "earned_usdt": 0.0852,
+    "cum_usdt": 6.33
    }
   }
  ]
