@@ -5,14 +5,21 @@
    "entry_price": 63343.8,
    "ts": 1785638865.7271435
   },
-  "don_equity": 482.45905359999995,
-  "don_position": null,
   "sha_state": {
    "qty": 0.005777390221882598,
    "cash": 374.625
   },
-  "funding_earned": 6.456230111339999,
-  "last_funding_ts": 1787126400000
+  "funding_earned": 6.703848911339999,
+  "last_funding_ts": 1787155200004,
+  "don_equity": 481.88127639999993,
+  "don_position": {
+   "side": 1,
+   "qty": 0.012,
+   "entry": 68783.0,
+   "best": 68783.0,
+   "stop": 66392.8620218696,
+   "ts": 1787155521.9195483
+  }
  },
  "events": [
   {
@@ -518,6 +525,25 @@
     "rate": 3.815e-05,
     "earned_usdt": 0.0883,
     "cum_usdt": 6.46
+   }
+  },
+  {
+   "ts": "2026-08-19 16:05:18",
+   "kind": "FUNDING",
+   "detail": {
+    "rate": 0.0001,
+    "earned_usdt": 0.2476,
+    "cum_usdt": 6.7
+   }
+  },
+  {
+   "ts": "2026-08-19 16:05:21",
+   "kind": "DON_ENTER",
+   "detail": {
+    "side": 1,
+    "qty": 0.012,
+    "price": 68783.0,
+    "stop": 66392.9
    }
   }
  ]
