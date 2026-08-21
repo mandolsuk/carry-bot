@@ -10,14 +10,19 @@
    "cash": 374.625
   },
   "don_equity": 481.88127639999993,
-  "funding_earned": 7.442153854487999,
-  "last_funding_ts": 1787241600005,
+  "funding_earned": 7.572751452503999,
+  "last_funding_ts": 1787270400004,
+  "btc_position": {
+   "qty": 0.006,
+   "entry_price": 73080.4,
+   "ts": 1787270724.966266
+  },
   "don_position": {
    "side": 1,
    "qty": 0.012,
    "entry": 68783.0,
-   "best": 72773.5,
-   "stop": 69616.32758934889,
+   "best": 73080.4,
+   "stop": 69947.09704725254,
    "ts": 1787155521.9195483
   }
  },
@@ -571,6 +576,26 @@
     "rate": 9.422e-05,
     "earned_usdt": 0.2453,
     "cum_usdt": 7.44
+   }
+  },
+  {
+   "ts": "2026-08-21 00:05:20",
+   "kind": "FUNDING",
+   "detail": {
+    "rate": 4.964e-05,
+    "earned_usdt": 0.1306,
+    "cum_usdt": 7.57
+   }
+  },
+  {
+   "ts": "2026-08-21 00:05:24",
+   "kind": "ENTER_BTC",
+   "detail": {
+    "qty": 0.006,
+    "price": 73080.4,
+    "close": 73025.15,
+    "ema": 70291.1,
+    "mode": "paper"
    }
   }
  ]
