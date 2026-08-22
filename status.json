@@ -15,14 +15,14 @@
    "entry_price": 73080.4,
    "ts": 1787270724.966266
   },
-  "funding_earned": 8.570059061183999,
-  "last_funding_ts": 1787385600000,
+  "funding_earned": 8.847540581183999,
+  "last_funding_ts": 1787414400000,
   "don_position": {
    "side": 1,
    "qty": 0.012,
    "entry": 68783.0,
    "best": 78584.2,
-   "stop": 74326.09125180086,
+   "stop": 74458.93982514813,
    "ts": 1787155521.9195483
   }
  },
@@ -632,6 +632,15 @@
     "rate": 0.0001,
     "earned_usdt": 0.2782,
     "cum_usdt": 8.57
+   }
+  },
+  {
+   "ts": "2026-08-22 16:05:13",
+   "kind": "FUNDING",
+   "detail": {
+    "rate": 0.0001,
+    "earned_usdt": 0.2775,
+    "cum_usdt": 8.85
    }
   }
  ]
